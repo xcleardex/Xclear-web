@@ -13,7 +13,7 @@ XClear Web 是一个专业的金融交易平台前端应用，提供实时价格
 - **构建工具**: Vite 5.0.8
 - **样式**: TailwindCSS 3.3.6
 - **UI 组件库**: [shadcn/ui](https://ui.shadcn.com/) - 基于 Radix UI 和 Tailwind CSS
-- **图表库**: Lightweight Charts 4.1.3 (TradingView 轻量级图表库)
+- **图表**: TradingView Lightweight Charts 4.x + WebSocket 数据
 - **钱包连接**: Privy 1.60.0
 - **图标**: Lucide React 0.294.0
 
@@ -82,13 +82,13 @@ XClear-web/
   - 持仓、仓位历史、交易历史标签页
 
 ### 4. TradingView 图表 (TradingViewChart)
-- **功能**: 使用 Lightweight Charts 渲染价格走势图
+- **功能**: 使用 [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/) + WebSocket 渲染 K 线
 - **组件位置**: `src/components/TradingViewChart.tsx`
+- **数据源**: WebSocket `ws://54.153.138.55:8080/hub/tradingview?id=<随机id>`，id 由 `generateTradingViewWsId()` 生成
 - **主要功能**:
-  - 实时价格图表展示
-  - 响应式布局
-  - 深色主题适配
-  - 支持多种时间周期
+  - 实时 K 线由 WebSocket 推送更新（`subscribeTradingViewWsBars`）
+  - 深色主题、蜡烛图、响应式
+  - 无需额外下载 Charting Library，开箱即用
 
 ### 5. 交易执行面板 (TradingPanel)
 - **功能**: 提供交易执行界面
@@ -144,7 +144,7 @@ VITE_PRIVY_APP_ID=your-privy-app-id
 2. 创建新应用或选择现有应用
 3. 复制 App ID 到 `.env` 文件中
 
-3. **启动开发服务器**
+4. **启动开发服务器**
 ```bash
 npm run dev
 # 或
@@ -153,14 +153,14 @@ yarn dev
 
 应用将在 `http://localhost:3000` 启动
 
-4. **构建生产版本**
+5. **构建生产版本**
 ```bash
 npm run build
 # 或
 yarn build
 ```
 
-5. **预览生产构建**
+6. **预览生产构建**
 ```bash
 npm run preview
 # 或
@@ -301,19 +301,11 @@ import AccountInfo from './components/AccountInfo'
 }
 ```
 
-### 自定义图表样式
+### TradingView 图表与 WebSocket 数据
 
-修改 `src/components/TradingViewChart.tsx` 中的图表配置：
-
-```typescript
-const chart = createChart(chartContainerRef.current, {
-  layout: {
-    background: { color: '#0A0E27' },
-    textColor: '#D1D5DB',
-  },
-  // ... 其他配置
-})
-```
+- 图表使用 TradingView Lightweight Charts，数据由 WebSocket 订阅提供（`src/lib/tradingview-ws-datafeed.ts` 中的 `subscribeTradingViewWsBars`）。
+- WebSocket 地址：`ws://54.153.138.55:8080/hub/tradingview?id=<随机id>`，id 由 `src/lib/utils.ts` 中的 `generateTradingViewWsId()` 生成。
+- 若后端推送的 K 线格式与默认不同，可修改 `tradingview-ws-datafeed.ts` 中的 `normalizeBar` 或消息解析逻辑。默认支持 `{ time, open, high, low, close, volume? }` 及 `o/h/l/c` 简写，time 支持秒或毫秒。
 
 ### 扩展交易功能
 
@@ -322,15 +314,14 @@ const chart = createChart(chartContainerRef.current, {
 ## 已知问题和改进方向
 
 ### 当前限制
-1. 图表数据为模拟数据，需要接入真实 API
+1. 图表使用 Lightweight Charts + WebSocket，数据已接入
 2. 交易执行功能为 UI 展示，需要后端 API 支持
 3. 账户信息为静态数据，需要连接真实账户系统
 
 ### 计划改进
 1. **数据集成**
-   - 接入真实价格数据 API
-   - 实现 WebSocket 实时价格推送
-   - 集成历史数据查询
+   - 若后端支持历史 K 线接口，可在 Datafeed 的 `getBars` 中对接，减少首屏空白
+   - 集成行情/账户等其它 WebSocket 或 REST 接口
 
 2. **交易功能**
    - 实现真实的交易执行逻辑
@@ -350,6 +341,21 @@ const chart = createChart(chartContainerRef.current, {
 ## 许可证
 
 本项目为私有项目，未经授权不得使用。
+
+## 联系方式
+
+如有问题或建议，请联系开发团队。
+�目，未经授权不得使用。
+
+## 联系方式
+
+如有问题或建议，请联系开发团队。
+有项目，未经授权不得使用。
+
+## 联系方式
+
+如有问题或建议，请联系开发团队。
+�目，未经授权不得使用。
 
 ## 联系方式
 

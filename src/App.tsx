@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PrivyProvider } from '@privy-io/react-auth'
+// 需要钱包时取消下面注释并恢复: import { PrivyProvider } from '@privy-io/react-auth'
 import Header from './components/Header'
 import TradingPairs from './components/TradingPairs'
 import ChartPanel from './components/ChartPanel'
@@ -11,16 +11,16 @@ function App() {
   const [isPairsPanelVisible, setIsPairsPanelVisible] = useState(true)
 
   return (
-    <PrivyProvider
-      appId={import.meta.env.VITE_PRIVY_APP_ID || 'your-privy-app-id'}
-      config={{
-        loginMethods: ['wallet', 'email', 'sms'],
-        appearance: {
-          theme: 'dark',
-          accentColor: '#FF6B35',
-        },
-      }}
-    >
+    // <PrivyProvider
+    //   appId={import.meta.env.VITE_PRIVY_APP_ID || 'cmkt79gdw012ui50c0lwtjti4'}
+    //   config={{
+    //     loginMethods: ['wallet', 'email', 'sms'],
+    //     appearance: {
+    //       theme: 'dark',
+    //       accentColor: '#FF6B35',
+    //     },
+    //   }}
+    // >
       <div className="min-h-screen bg-background">
         <Header />
         <div className="flex h-[calc(100vh-64px)] relative">
@@ -44,7 +44,7 @@ function App() {
           </div>
         </div>
       </div>
-    </PrivyProvider>
+    // {/* </PrivyProvider> */}
   )
 }
 
