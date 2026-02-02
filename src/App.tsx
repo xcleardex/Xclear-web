@@ -7,7 +7,7 @@ import TradingPanel from './components/TradingPanel'
 import AccountInfo from './components/AccountInfo'
 
 function App() {
-  const [selectedSymbol, setSelectedSymbol] = useState('XAU/USD')
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT')
   const [isPairsPanelVisible, setIsPairsPanelVisible] = useState(true)
 
   return (

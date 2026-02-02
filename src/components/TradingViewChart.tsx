@@ -56,7 +56,12 @@ const TradingViewChart = ({ symbol, interval = '1M' }: TradingViewChartProps) =>
     barsCacheRef.current = new Map()
     hasSetDataRef.current = false
 
-    const unsubscribe = subscribeTradingViewWsBars((bar: TVBar) => {
+    // 转换 symbol 格式：XAU/USD -> XAUUSD
+    const normalizedSymbol = symbol.replace('/', '')
+    // 转换 interval 格式：1M -> 1（分钟），如果后端用不同格式可调整
+    const normalizedInterval = interval === '1M' ? '1' : interval === '1W' ? '10080' : interval === '1D' ? '1440' : interval
+
+    const unsubscribe = subscribeTradingViewWsBars(normalizedSymbol, normalizedInterval, (bar: TVBar) => {
       const key = bar.time
       barsCacheRef.current.set(key, { ...bar })
       const bars = Array.from(barsCacheRef.current.values()).sort((a, b) => a.time - b.time)

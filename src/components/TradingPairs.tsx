@@ -9,6 +9,7 @@ interface TradingPair {
 }
 
 const tradingPairs: TradingPair[] = [
+  { symbol: 'BTC/USDT', name: '比特币', price: 97500.00, change: 2.35, changePercent: 2.35 },
   { symbol: 'XAU/USD', name: '黄金', price: 2034.56, change: 1.23, changePercent: 1.23 },
   { symbol: 'XAG/USD', name: '白银', price: 24.32, change: -0.45, changePercent: -0.45 },
   { symbol: 'WTI/USD', name: '原油', price: 78.45, change: 2.15, changePercent: 2.15 },

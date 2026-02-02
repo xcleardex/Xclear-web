@@ -1,32 +1,21 @@
 /**
  * TradingView Charting Library 自定义 Datafeed
- * 使用 WebSocket ws://54.153.138.55:8080/hub/tradingview?id=<随机id> 作为数据源
- * 使用 reconnecting-websocket 实现断线自动重连，保持稳定连接
+ * 使用 SignalR Hub http://54.153.138.55:8080/hub/tradingview 作为数据源
+ * 使用 @microsoft/signalr 实现连接，支持自动重连
  *
  * 使用前需将 TradingView Charting Library 放入 public/charting_library/
  * 文档: https://www.tradingview.com/charting-library-docs/
  */
 
-import ReconnectingWebSocket from 'reconnecting-websocket'
-import { generateTradingViewWsId } from './utils'
+import * as signalR from '@microsoft/signalr'
 
-const WS_BASE_URL = 'ws://54.153.138.55:8080/hub/tradingview'
+const HUB_BASE_URL = 'http://54.153.138.55:8080/hub/tradingview'
 
-/** 可通过 .env 的 VITE_WS_URL 覆盖 */
-function getWsBaseUrl(): string {
-  const url = import.meta.env.VITE_WS_URL
-  if (url) return url.replace(/\/$/, '')
-  return WS_BASE_URL
-}
-
-/** 稳定连接配置：自动重连、超时与重试间隔 */
-const WS_OPTIONS = {
-  connectionTimeout: 5000,
-  maxRetries: Infinity,
-  minReconnectionDelay: 2000,
-  maxReconnectionDelay: 15000,
-  reconnectionDelayGrowFactor: 1.3,
-  minUptime: 3000,
+/** 可通过 .env 的 VITE_HUB_URL 覆盖 */
+function getHubUrl(): string {
+  const url = import.meta.env.VITE_HUB_URL || import.meta.env.VITE_WS_URL
+  if (url) return url.replace(/^ws/, 'http').replace(/\/$/, '').replace(/\?.*$/, '')
+  return HUB_BASE_URL
 }
 
 /** TradingView Bar 格式：time 为 Unix 秒 */
@@ -42,15 +31,22 @@ export interface TVBar {
 /** 后端 WebSocket 可能下发的 K 线格式（兼容 time 秒/毫秒 及 o,h,l,c 简写） */
 interface WsBarPayload {
   time: number
-  open?: number
-  high?: number
-  low?: number
-  close?: number
-  volume?: number
+  open?: number | string
+  high?: number | string
+  low?: number | string
+  close?: number | string
+  volume?: number | string
   o?: number
   h?: number
   l?: number
   c?: number
+}
+
+/** 后端 BarUpdate 事件的数据格式 */
+interface BarUpdatePayload {
+  symbol: string
+  resolution: string
+  bar: WsBarPayload
 }
 
 function normalizeBar(payload: WsBarPayload): TVBar {
@@ -58,11 +54,11 @@ function normalizeBar(payload: WsBarPayload): TVBar {
   if (time > 1e12) time = Math.floor(time / 1000) // 毫秒转秒
   return {
     time,
-    open: payload.open ?? payload.o ?? 0,
-    high: payload.high ?? payload.h ?? 0,
-    low: payload.low ?? payload.l ?? 0,
-    close: payload.close ?? payload.c ?? 0,
-    volume: payload.volume,
+    open: parseFloat(String(payload.open ?? payload.o ?? 0)),
+    high: parseFloat(String(payload.high ?? payload.h ?? 0)),
+    low: parseFloat(String(payload.low ?? payload.l ?? 0)),
+    close: parseFloat(String(payload.close ?? payload.c ?? 0)),
+    volume: payload.volume ? parseFloat(String(payload.volume)) : undefined,
   }
 }
 
@@ -70,80 +66,137 @@ function normalizeBar(payload: WsBarPayload): TVBar {
 interface Subscriber {
   onTick: (bar: TVBar) => void
   onResetCacheNeeded: () => void
+  symbol: string
+  resolution: string
+}
+
+/** 处理 SignalR 推送的 BarUpdate 数据 */
+function handleBarUpdate(
+  data: BarUpdatePayload,
+  barsCache: TVBar[],
+  subscribers: Map<string, Subscriber>
+) {
+  const bar = normalizeBar(data.bar)
+  
+  // 更新缓存
+  const existing = barsCache.findIndex((b) => b.time === bar.time)
+  if (existing >= 0) {
+    barsCache[existing] = { ...bar }
+  } else {
+    barsCache.push({ ...bar })
+  }
+  barsCache.sort((a, b) => a.time - b.time)
+  
+  // 通知匹配的订阅者
+  subscribers.forEach((sub) => {
+    if (sub.symbol === data.symbol && sub.resolution === data.resolution) {
+      sub.onTick(bar)
+    }
+  })
 }
 
 /**
- * 创建使用指定 WebSocket 的 Datafeed 对象（TradingView Datafeed API）
- * 每次创建会生成新的随机 id 连接
+ * 创建使用 SignalR Hub 的 Datafeed 对象（TradingView Datafeed API）
+ * 使用 @microsoft/signalr 实现连接，支持自动重连
  */
 export function createTradingViewWsDatafeed() {
-  const wsId = generateTradingViewWsId()
-  const wsUrl = `${getWsBaseUrl()}?id=${wsId}`
-
-  let ws: ReconnectingWebSocket | null = null
+  let connection: signalR.HubConnection | null = null
   const subscribers = new Map<string, Subscriber>()
   /** 历史 K 线缓存，供 getBars 使用（若后端先推历史再推实时） */
   const barsCache: TVBar[] = []
   let cacheResolution: string | null = null
   let cacheSymbol: string | null = null
+  let pingInterval: ReturnType<typeof setInterval> | null = null
 
-  const connect = () => {
-    if (ws?.readyState === WebSocket.OPEN) return
+  const connect = async () => {
+    if (connection?.state === signalR.HubConnectionState.Connected) return
+
     try {
-      ws = new ReconnectingWebSocket(wsUrl, [], WS_OPTIONS)
-      ws.onopen = () => {
-        console.log('[TradingView Datafeed] WebSocket connected', wsUrl)
-      }
-      ws.onmessage = (event: MessageEvent) => {
-        try {
-          const raw = typeof event.data === 'string' ? event.data : ''
-          const data = JSON.parse(raw) as WsBarPayload | WsBarPayload[] | { bars?: WsBarPayload[]; bar?: WsBarPayload }
-          const bars: TVBar[] = []
-          if (Array.isArray(data)) {
-            data.forEach((b) => bars.push(normalizeBar(b)))
-          } else if (data && typeof data === 'object') {
-            if (Array.isArray((data as { bars?: WsBarPayload[] }).bars)) {
-              (data as { bars: WsBarPayload[] }).bars.forEach((b) => bars.push(normalizeBar(b)))
-            } else if ((data as { bar?: WsBarPayload }).bar) {
-              bars.push(normalizeBar((data as { bar: WsBarPayload }).bar!))
-            } else if ('time' in data && typeof (data as WsBarPayload).time === 'number') {
-              bars.push(normalizeBar(data as WsBarPayload))
-            }
-          }
-          if (bars.length === 0) return
-          bars.sort((a, b) => a.time - b.time)
-          bars.forEach((bar) => {
-            const existing = barsCache.findIndex((b) => b.time === bar.time)
-            if (existing >= 0) {
-              barsCache[existing] = { ...bar }
-            } else {
-              barsCache.push({ ...bar })
-            }
-            barsCache.sort((a, b) => a.time - b.time)
-          })
-          subscribers.forEach((sub) => {
-            bars.forEach((bar) => sub.onTick(bar))
-            if (bars.length > 1) sub.onResetCacheNeeded()
-          })
-        } catch (e) {
-          console.warn('[TradingView Datafeed] parse message error', e)
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl(getHubUrl())
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .configureLogging(signalR.LogLevel.Information)
+        .build()
+
+      // 监听连接成功
+      connection.on('Connected', (data: { connectionId: string }) => {
+        console.log('[TradingView Datafeed] Connected:', data.connectionId)
+      })
+
+      // 监听订阅确认
+      connection.on('Subscribed', (response: { success: boolean; message?: string }) => {
+        if (response.success) {
+          console.log('[TradingView Datafeed] Subscribed successfully')
+        } else {
+          console.warn('[TradingView Datafeed] Subscribe failed:', response.message)
         }
-      }
-      ws.onerror = (e: unknown) => {
-        console.warn('[TradingView Datafeed] WebSocket error', e)
-      }
-      ws.onclose = () => {
-        console.log('[TradingView Datafeed] WebSocket closed (将自动重连)')
-      }
+      })
+
+      // 监听取消订阅确认
+      connection.on('Unsubscribed', (response: { subscriberUID: string }) => {
+        console.log('[TradingView Datafeed] Unsubscribed:', response.subscriberUID)
+      })
+
+      // 监听 K线更新（后端推送的主要事件）
+      connection.on('BarUpdate', (data: BarUpdatePayload) => {
+        handleBarUpdate(data, barsCache, subscribers)
+      })
+
+      // 监听 Pong 心跳响应
+      connection.on('Pong', (data: { timestamp: number }) => {
+        console.log('[TradingView Datafeed] Pong:', data.timestamp)
+      })
+
+      connection.onreconnecting((error) => {
+        console.warn('[TradingView Datafeed] SignalR reconnecting...', error)
+      })
+
+      connection.onreconnected(async (connectionId) => {
+        console.log('[TradingView Datafeed] SignalR reconnected', connectionId)
+        // 重连后重新订阅所有
+        for (const [uid, sub] of subscribers) {
+          try {
+            await connection?.invoke('Subscribe', sub.symbol, sub.resolution, uid)
+          } catch (e) {
+            console.warn('[TradingView Datafeed] Resubscribe failed:', e)
+          }
+        }
+      })
+
+      connection.onclose((error) => {
+        console.log('[TradingView Datafeed] SignalR closed', error)
+        if (pingInterval) {
+          clearInterval(pingInterval)
+          pingInterval = null
+        }
+      })
+
+      await connection.start()
+      console.log('[TradingView Datafeed] SignalR connected', getHubUrl())
+
+      // 启动心跳
+      pingInterval = setInterval(async () => {
+        if (connection?.state === signalR.HubConnectionState.Connected) {
+          try {
+            await connection.invoke('Ping')
+          } catch (e) {
+            // 忽略
+          }
+        }
+      }, 30000)
     } catch (e) {
-      console.error('[TradingView Datafeed] WebSocket connect error', e)
+      console.error('[TradingView Datafeed] SignalR connect error', e)
     }
   }
 
-  const disconnect = () => {
-    if (ws) {
-      ws.close()
-      ws = null
+  const disconnect = async () => {
+    if (pingInterval) {
+      clearInterval(pingInterval)
+      pingInterval = null
+    }
+    if (connection) {
+      await connection.stop()
+      connection = null
     }
   }
 
@@ -213,67 +266,156 @@ export function createTradingViewWsDatafeed() {
     },
 
     subscribeBars(
-      _symbolInfo: Record<string, unknown>,
-      _resolution: string,
+      symbolInfo: { ticker?: string; name?: string },
+      resolution: string,
       onTick: (bar: TVBar) => void,
       listenerGuid: string,
       onResetCacheNeededCallback: () => void
     ) {
-      subscribers.set(listenerGuid, { onTick, onResetCacheNeeded: onResetCacheNeededCallback })
-      connect()
+      const symbol = symbolInfo.ticker || symbolInfo.name || ''
+      subscribers.set(listenerGuid, {
+        onTick,
+        onResetCacheNeeded: onResetCacheNeededCallback,
+        symbol,
+        resolution,
+      })
+      connect().then(async () => {
+        // 向后端订阅
+        if (connection?.state === signalR.HubConnectionState.Connected) {
+          try {
+            await connection.invoke('Subscribe', symbol, resolution, listenerGuid)
+          } catch (e) {
+            console.warn('[TradingView Datafeed] Subscribe invoke failed:', e)
+          }
+        }
+      })
     },
 
     unsubscribeBars(listenerGuid: string) {
+      const sub = subscribers.get(listenerGuid)
       subscribers.delete(listenerGuid)
+      
+      // 向后端取消订阅
+      if (connection?.state === signalR.HubConnectionState.Connected && sub) {
+        connection.invoke('Unsubscribe', listenerGuid).catch((e) => {
+          console.warn('[TradingView Datafeed] Unsubscribe invoke failed:', e)
+        })
+      }
+      
       if (subscribers.size === 0) disconnect()
     },
   }
 }
 
 /**
- * 订阅 WebSocket K 线流，供 Lightweight Charts 等使用
+ * 单例 SignalR 连接管理器，供 Lightweight Charts 等使用
+ */
+let sharedConnection: signalR.HubConnection | null = null
+let sharedConnectionPromise: Promise<void> | null = null
+let sharedSubscribers = new Map<string, (bar: TVBar) => void>()
+let sharedHeartbeat: ReturnType<typeof setInterval> | null = null
+
+async function getSharedConnection(): Promise<signalR.HubConnection> {
+  if (sharedConnection?.state === signalR.HubConnectionState.Connected) {
+    return sharedConnection
+  }
+
+  // 如果正在连接中，等待连接完成
+  if (sharedConnectionPromise) {
+    await sharedConnectionPromise
+    return sharedConnection!
+  }
+
+  // 创建新连接
+  sharedConnection = new signalR.HubConnectionBuilder()
+    .withUrl(getHubUrl(), {
+      skipNegotiation: true,
+      transport: signalR.HttpTransportType.WebSockets,
+    })
+    .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+    .configureLogging(signalR.LogLevel.Information)
+    .build()
+
+  // 监听连接成功
+  sharedConnection.on('Connected', (data: { connectionId: string }) => {
+    console.log('[TradingView SignalR] Connected:', data.connectionId)
+  })
+
+  // 监听 K线更新
+  sharedConnection.on('BarUpdate', (data: BarUpdatePayload) => {
+    const bar = normalizeBar(data.bar)
+    sharedSubscribers.forEach((callback) => callback(bar))
+  })
+
+  // 监听 Pong
+  sharedConnection.on('Pong', (data: { timestamp: number }) => {
+    console.log('[TradingView SignalR] Pong:', data.timestamp)
+  })
+
+  sharedConnection.onclose(() => {
+    console.log('[TradingView SignalR] closed')
+    if (sharedHeartbeat) {
+      clearInterval(sharedHeartbeat)
+      sharedHeartbeat = null
+    }
+  })
+
+  sharedConnectionPromise = sharedConnection.start().then(() => {
+    console.log('[TradingView SignalR] connected', getHubUrl())
+    // 启动心跳
+    if (!sharedHeartbeat) {
+      sharedHeartbeat = setInterval(async () => {
+        if (sharedConnection?.state === signalR.HubConnectionState.Connected) {
+          try {
+            await sharedConnection.invoke('Ping')
+          } catch (e) {
+            // 忽略
+          }
+        }
+      }, 30000)
+    }
+  })
+
+  await sharedConnectionPromise
+  sharedConnectionPromise = null
+  return sharedConnection
+}
+
+/**
+ * 订阅 SignalR K 线流，供 Lightweight Charts 等使用
+ * @param symbol 交易对，如 "XAUUSD"
+ * @param resolution 周期，如 "1" "5" "15" "60" "1D"
+ * @param onBar K线更新回调
  * 返回取消订阅函数
  */
-export function subscribeTradingViewWsBars(onBar: (bar: TVBar) => void): () => void {
-  const wsId = generateTradingViewWsId()
-  const wsUrl = `${getWsBaseUrl()}?id=${wsId}`
-  let ws: ReconnectingWebSocket | null = null
-
-  const parseMessage = (raw: string) => {
-    try {
-      const data = JSON.parse(raw) as WsBarPayload | WsBarPayload[] | { bars?: WsBarPayload[]; bar?: WsBarPayload }
-      const bars: TVBar[] = []
-      if (Array.isArray(data)) {
-        data.forEach((b) => bars.push(normalizeBar(b)))
-      } else if (data && typeof data === 'object') {
-        if (Array.isArray((data as { bars?: WsBarPayload[] }).bars)) {
-          (data as { bars: WsBarPayload[] }).bars.forEach((b) => bars.push(normalizeBar(b)))
-        } else if ((data as { bar?: WsBarPayload }).bar) {
-          bars.push(normalizeBar((data as { bar: WsBarPayload }).bar!))
-        } else if ('time' in data && typeof (data as WsBarPayload).time === 'number') {
-          bars.push(normalizeBar(data as WsBarPayload))
-        }
+export function subscribeTradingViewWsBars(
+  symbol: string,
+  resolution: string,
+  onBar: (bar: TVBar) => void
+): () => void {
+  const subscriberId = `sub_${Date.now()}_${Math.random().toString(36).slice(2)}`
+  
+  sharedSubscribers.set(subscriberId, onBar)
+  
+  // 确保连接已建立，并订阅
+  getSharedConnection()
+    .then(async (conn) => {
+      try {
+        await conn.invoke('Subscribe', symbol, resolution, subscriberId)
+        console.log(`[TradingView SignalR] Subscribed: ${symbol} ${resolution}`)
+      } catch (e) {
+        console.warn('[TradingView SignalR] Subscribe invoke failed:', e)
       }
-      bars.sort((a, b) => a.time - b.time)
-      bars.forEach((bar) => onBar(bar))
-    } catch (e) {
-      console.warn('[TradingView WS] parse message error', e)
-    }
-  }
-
-  ws = new ReconnectingWebSocket(wsUrl, [], WS_OPTIONS)
-  ws.onopen = () => {
-    console.log('[TradingView WS] connected', wsUrl)
-  }
-  ws.onmessage = (event: MessageEvent) => {
-    const raw = typeof event.data === 'string' ? event.data : ''
-    if (raw) parseMessage(raw)
-  }
+    })
+    .catch((e) => {
+      console.error('[TradingView SignalR] connect error', e)
+    })
 
   return () => {
-    if (ws) {
-      ws.close()
-      ws = null
+    sharedSubscribers.delete(subscriberId)
+    // 向后端取消订阅
+    if (sharedConnection?.state === signalR.HubConnectionState.Connected) {
+      sharedConnection.invoke('Unsubscribe', subscriberId).catch(() => {})
     }
   }
 }
