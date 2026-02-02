@@ -5,7 +5,7 @@ import { createRequire } from 'module'
 
 const require = createRequire(import.meta.url)
 
-// @ethersproject/solidity 的 ESM 构建缺少 _version，用 CJS 入口路径（运行时解析，兼容 pnpm）
+// @ethersproject/solidity 的 ESM 构建缺少 _version，用 CJS 入口（Privy 等依赖会间接用到）
 const solidityCjsPath = path.join(path.dirname(require.resolve('@ethersproject/solidity/package.json')), 'lib/index.js')
 
 // https://vitejs.dev/config/
@@ -18,7 +18,6 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
     open: true,
   },
 })

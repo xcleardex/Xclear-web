@@ -1,42 +1,44 @@
-import { useState } from 'react'
-// 需要钱包时取消下面注释并恢复: import { PrivyProvider } from '@privy-io/react-auth'
-import Header from './components/Header'
-import TradingPairs from './components/TradingPairs'
-import ChartPanel from './components/ChartPanel'
-import TradingPanel from './components/TradingPanel'
-import AccountInfo from './components/AccountInfo'
+import { useState } from "react";
+import { PrivyProvider } from "@privy-io/react-auth";
+import Header from "./components/Header";
+import TradingPairs from "./components/TradingPairs";
+import ChartPanel from "./components/ChartPanel";
+import TradingPanel from "./components/TradingPanel";
+import AccountInfo from "./components/AccountInfo";
 
 function App() {
-  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT')
-  const [isPairsPanelVisible, setIsPairsPanelVisible] = useState(true)
+  const [selectedSymbol, setSelectedSymbol] = useState("BTC/USDT");
+  const [isPairsPanelVisible, setIsPairsPanelVisible] = useState(true);
 
   return (
-    // <PrivyProvider
-    //   appId={import.meta.env.VITE_PRIVY_APP_ID || 'cmkt79gdw012ui50c0lwtjti4'}
-    //   config={{
-    //     loginMethods: ['wallet', 'email', 'sms'],
-    //     appearance: {
-    //       theme: 'dark',
-    //       accentColor: '#FF6B35',
-    //     },
-    //   }}
-    // >
+    <PrivyProvider
+      appId={import.meta.env.VITE_PRIVY_APP_ID || "cmkt79gdw012ui50c0lwtjti4"}
+      config={{
+        loginMethods: ["wallet", "email", "sms"],
+        appearance: {
+          theme: "dark",
+          accentColor: "#FF6B35",
+        },
+      }}
+    >
       <div className="min-h-screen bg-background">
         <Header />
         <div className="flex h-[calc(100vh-64px)] relative">
           {/* 左侧交易对列表 */}
-          <TradingPairs 
-            selectedSymbol={selectedSymbol} 
+          <TradingPairs
+            selectedSymbol={selectedSymbol}
             onSymbolChange={setSelectedSymbol}
             isVisible={isPairsPanelVisible}
             onVisibilityChange={setIsPairsPanelVisible}
           />
-          
+
           {/* 中间图表区域 */}
-          <div className={`flex-1 flex flex-col transition-all ${!isPairsPanelVisible ? 'ml-0' : ''}`}>
+          <div
+            className={`flex-1 flex flex-col transition-all ${!isPairsPanelVisible ? "ml-0" : ""}`}
+          >
             <ChartPanel symbol={selectedSymbol} />
           </div>
-          
+
           {/* 右侧交易面板和账户信息 */}
           <div className="w-80 flex flex-col border-l border-border">
             <TradingPanel symbol={selectedSymbol} />
@@ -44,8 +46,8 @@ function App() {
           </div>
         </div>
       </div>
-    // {/* </PrivyProvider> */}
-  )
+    </PrivyProvider>
+  );
 }
 
-export default App
+export default App;
