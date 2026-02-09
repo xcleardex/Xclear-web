@@ -16,17 +16,19 @@ interface TradingContextValue {
 
 const TradingContext = createContext<TradingContextValue | null>(null)
 
+const DEMO_USER_ID = 'demo_user_001'
+
 export function TradingProvider({ children }: { children: React.ReactNode }) {
   const { user } = usePrivy()
   const connectionStatus = useConnectionStatus()
 
   const userId = (() => {
-    if (!user) return ''
-    if (user.wallet?.address) return user.wallet.address
-    const walletAccount = user.linkedAccounts?.find(
+    if (user?.wallet?.address) return user.wallet.address
+    const walletAccount = user?.linkedAccounts?.find(
       (account: any) => account.type === 'wallet'
     ) as any
-    return walletAccount?.address || ''
+    if (walletAccount?.address) return walletAccount.address
+    return DEMO_USER_ID
   })()
 
   const [currentPrice, setCurrentPrice] = useState(0)

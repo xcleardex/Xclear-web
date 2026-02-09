@@ -7,16 +7,7 @@ import { useTradingContext } from '@/contexts/TradingContext'
 import type { Position } from '@/types/trading'
 
 const PositionList = () => {
-  const { userId, positions, positionsLoading, refreshPositions } = useTradingContext()
-
-  if (!userId) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        <p className="mb-2">请先连接钱包</p>
-        <p className="text-sm">连接钱包后持仓将显示在这里</p>
-      </div>
-    )
-  }
+  const { positions, positionsLoading, refreshPositions } = useTradingContext()
 
   if (positionsLoading && positions.length === 0) {
     return <div className="p-6 text-center text-muted-foreground">加载中...</div>

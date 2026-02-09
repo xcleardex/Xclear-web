@@ -33,10 +33,6 @@ const TradingPanel = ({ symbol }: TradingPanelProps) => {
   }, [currentPrice, marginNum, leverage, isLong])
 
   const handleSubmit = async () => {
-    if (!userId) {
-      alert('请先连接钱包')
-      return
-    }
     if (marginNum <= 0) {
       alert('请输入有效的保证金金额')
       return
@@ -158,13 +154,6 @@ const TradingPanel = ({ symbol }: TradingPanelProps) => {
           ? '开仓中...'
           : `${isLong ? '开多' : '开空'} ${normalizedSymbol}`}
       </Button>
-
-      {/* 未连接钱包提示 */}
-      {!userId && (
-        <div className="text-xs text-yellow-400 bg-yellow-400/10 p-2 rounded mt-3 text-center">
-          请先连接钱包后再进行交易
-        </div>
-      )}
     </div>
   )
 }
