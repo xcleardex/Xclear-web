@@ -1,6 +1,11 @@
 services:
-  web:
+  dex-web:
     build: .
     ports:
       - "3000:80"
     restart: unless-stopped
+
+networks:
+  default:
+    external: true
+    name: network1
