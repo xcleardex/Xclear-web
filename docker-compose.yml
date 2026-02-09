@@ -1,5 +1,7 @@
 services:
   dex-web:
+    image: image_name_placeholder:latest
+    container_name: dex-web
     build: .
     ports:
       - "3000:80"
