@@ -19,5 +19,16 @@ export default defineConfig({
   },
   server: {
     open: true,
+    proxy: {
+      '/api': {
+        target: 'http://54.153.138.55:8080',
+        changeOrigin: true,
+      },
+      '/hub': {
+        target: 'http://54.153.138.55:8080',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
 })

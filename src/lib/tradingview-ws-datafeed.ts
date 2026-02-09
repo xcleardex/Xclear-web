@@ -310,6 +310,28 @@ export function createTradingViewWsDatafeed() {
 /**
  * 单例 SignalR 连接管理器，供 Lightweight Charts 等使用
  */
+import type { ConnectionStatus } from '@/types/trading'
+
+type StatusListener = (status: ConnectionStatus) => void
+const statusListeners = new Set<StatusListener>()
+
+function notifyStatus(status: ConnectionStatus) {
+  statusListeners.forEach(fn => fn(status))
+}
+
+/** 注册连接状态变化监听器，返回取消函数 */
+export function onConnectionStatusChange(listener: StatusListener): () => void {
+  statusListeners.add(listener)
+  return () => { statusListeners.delete(listener) }
+}
+
+/** 获取当前连接状态 */
+export function getConnectionStatus(): ConnectionStatus {
+  if (sharedConnection?.state === signalR.HubConnectionState.Connected) return 'connected'
+  if (sharedConnection?.state === signalR.HubConnectionState.Reconnecting) return 'reconnecting'
+  return 'disconnected'
+}
+
 let sharedConnection: signalR.HubConnection | null = null
 let sharedConnectionPromise: Promise<void> | null = null
 let sharedSubscribers = new Map<string, (bar: TVBar) => void>()
@@ -352,8 +374,27 @@ async function getSharedConnection(): Promise<signalR.HubConnection> {
     console.log('[TradingView SignalR] Pong:', data.timestamp)
   })
 
+  sharedConnection.onreconnecting(() => {
+    console.warn('[TradingView SignalR] reconnecting...')
+    notifyStatus('reconnecting')
+  })
+
+  sharedConnection.onreconnected(async (connectionId) => {
+    console.log('[TradingView SignalR] reconnected', connectionId)
+    notifyStatus('connected')
+    // 重连后重新订阅所有
+    for (const [uid] of sharedSubscribers) {
+      try {
+        await sharedConnection?.invoke('Subscribe', '', '', uid)
+      } catch (e) {
+        console.warn('[TradingView SignalR] Resubscribe failed:', e)
+      }
+    }
+  })
+
   sharedConnection.onclose(() => {
     console.log('[TradingView SignalR] closed')
+    notifyStatus('disconnected')
     if (sharedHeartbeat) {
       clearInterval(sharedHeartbeat)
       sharedHeartbeat = null
@@ -362,6 +403,7 @@ async function getSharedConnection(): Promise<signalR.HubConnection> {
 
   sharedConnectionPromise = sharedConnection.start().then(() => {
     console.log('[TradingView SignalR] connected', getHubUrl())
+    notifyStatus('connected')
     // 启动心跳
     if (!sharedHeartbeat) {
       sharedHeartbeat = setInterval(async () => {

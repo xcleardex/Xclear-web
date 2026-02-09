@@ -1,47 +1,71 @@
 import { useState } from 'react'
 import TradingViewChart from './TradingViewChart'
+import PositionList from './PositionList'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useTradingContext } from '@/contexts/TradingContext'
+import { cn } from '@/lib/utils'
+import type { TVBar } from '@/lib/tradingview-ws-datafeed'
 
 interface ChartPanelProps {
   symbol: string
 }
 
-const ChartPanel = ({ symbol }: ChartPanelProps) => {
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1M')
+const timeframes = ['1m', '5m', '15m', '30m', '1h', '4h', '1D']
 
-  const timeframes = ['1D', '1W', '1M']
+const ChartPanel = ({ symbol }: ChartPanelProps) => {
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1m')
+  const [infoBar, setInfoBar] = useState<TVBar | null>(null)
+  const { setCurrentPrice, connectionStatus } = useTradingContext()
+
+  const statusConfig = {
+    connected: { color: 'bg-green-500', text: '已连接' },
+    disconnected: { color: 'bg-red-500', text: '未连接' },
+    reconnecting: { color: 'bg-yellow-500', text: '重连中...' },
+  }
+  const { color: statusColor, text: statusText } = statusConfig[connectionStatus]
 
   return (
     <div className="flex-1 flex flex-col bg-background">
-      {/* 价格和统计信息 */}
-      <div className="px-6 py-4 border-b border-border">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">2,025.75</h1>
-            <span className="text-green-400 text-sm">+1.23%</span>
+      {/* OHLCV 信息栏 */}
+      <div className="px-6 py-3 border-b border-border">
+        <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">开盘:</span>
+            <span>{infoBar?.open?.toFixed(2) ?? '-'}</span>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-400 mb-1">24h 成交量</div>
-            <div className="text-lg font-semibold">$1250.00M</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">最高:</span>
+            <span className="text-green-400">{infoBar?.high?.toFixed(2) ?? '-'}</span>
           </div>
-        </div>
-        
-        <div className="flex gap-6 text-sm">
-          <div>
-            <span className="text-gray-400">24h 最高: </span>
-            <span className="text-green-400">2066.26</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">最低:</span>
+            <span className="text-red-400">{infoBar?.low?.toFixed(2) ?? '-'}</span>
           </div>
-          <div>
-            <span className="text-gray-400">24h 最低: </span>
-            <span className="text-red-400">1985.23</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">收盘:</span>
+            <span>{infoBar?.close?.toFixed(2) ?? '-'}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">成交量:</span>
+            <span>{infoBar?.volume?.toFixed(4) ?? '-'}</span>
+          </div>
+          {/* 连接状态 */}
+          <div className="ml-auto flex items-center gap-2">
+            <div className={cn('w-2 h-2 rounded-full', statusColor)} />
+            <span className="text-xs text-muted-foreground">{statusText}</span>
           </div>
         </div>
       </div>
 
       {/* 图表区域 */}
       <div className="flex-1 min-h-0">
-        <TradingViewChart symbol={symbol} interval={selectedTimeframe} />
+        <TradingViewChart
+          symbol={symbol}
+          interval={selectedTimeframe}
+          onBarUpdate={setInfoBar}
+          onCurrentPriceChange={setCurrentPrice}
+        />
       </div>
 
       {/* 时间周期选择 */}
@@ -72,11 +96,8 @@ const ChartPanel = ({ symbol }: ChartPanelProps) => {
               交易历史
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="持仓" className="p-6 text-center text-muted-foreground m-0">
-            <div>
-              <p className="mb-2">暂无持仓</p>
-              <p className="text-sm">开仓后持仓将显示在这里</p>
-            </div>
+          <TabsContent value="持仓" className="m-0">
+            <PositionList />
           </TabsContent>
           <TabsContent value="仓位历史" className="p-6 text-center text-muted-foreground m-0">
             <p>暂无仓位历史</p>

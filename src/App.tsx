@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { TradingProvider } from "./contexts/TradingContext";
 import Header from "./components/Header";
 import TradingPairs from "./components/TradingPairs";
 import ChartPanel from "./components/ChartPanel";
@@ -21,31 +22,33 @@ function App() {
         },
       }}
     >
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex h-[calc(100vh-64px)] relative">
-          {/* 左侧交易对列表 */}
-          <TradingPairs
-            selectedSymbol={selectedSymbol}
-            onSymbolChange={setSelectedSymbol}
-            isVisible={isPairsPanelVisible}
-            onVisibilityChange={setIsPairsPanelVisible}
-          />
+      <TradingProvider>
+        <div className="min-h-screen bg-background">
+          <Header />
+          <div className="flex h-[calc(100vh-64px)] relative">
+            {/* 左侧交易对列表 */}
+            <TradingPairs
+              selectedSymbol={selectedSymbol}
+              onSymbolChange={setSelectedSymbol}
+              isVisible={isPairsPanelVisible}
+              onVisibilityChange={setIsPairsPanelVisible}
+            />
 
-          {/* 中间图表区域 */}
-          <div
-            className={`flex-1 flex flex-col transition-all ${!isPairsPanelVisible ? "ml-0" : ""}`}
-          >
-            <ChartPanel symbol={selectedSymbol} />
-          </div>
+            {/* 中间图表区域 */}
+            <div
+              className={`flex-1 flex flex-col transition-all ${!isPairsPanelVisible ? "ml-0" : ""}`}
+            >
+              <ChartPanel symbol={selectedSymbol} />
+            </div>
 
-          {/* 右侧交易面板和账户信息 */}
-          <div className="w-80 flex flex-col border-l border-border">
-            <TradingPanel symbol={selectedSymbol} />
-            <AccountInfo />
+            {/* 右侧交易面板和账户信息 */}
+            <div className="w-80 flex flex-col border-l border-border">
+              <TradingPanel symbol={selectedSymbol} />
+              <AccountInfo />
+            </div>
           </div>
         </div>
-      </div>
+      </TradingProvider>
     </PrivyProvider>
   );
 }
