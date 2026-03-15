@@ -66,7 +66,10 @@ const PositionItem = ({ position }: { position: Position }) => {
     <Card>
       <CardContent className="p-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="font-semibold text-sm">{position.symbol}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">{position.symbol}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">逐仓</span>
+          </div>
           <span className={cn(
             'text-xs px-2 py-0.5 rounded',
             position.isLong
