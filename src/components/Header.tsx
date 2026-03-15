@@ -1,5 +1,5 @@
-import { usePrivy } from '@privy-io/react-auth'
-import { Wallet, Settings, Copy, ExternalLink, Power } from 'lucide-react'
+import { useState } from 'react'
+import { Wallet, Settings, Copy, ExternalLink, Power, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,28 +9,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/contexts/AuthContext'
+import LoginModal from './LoginModal'
 
 const Header = () => {
-  const { ready, authenticated, login, logout, user } = usePrivy()
+  const { user, isAuthenticated, logout } = useAuth()
+  const [loginOpen, setLoginOpen] = useState(false)
 
-  // 获取钱包地址 - Privy 可能使用不同的路径
-  // 尝试多种方式获取地址
-  const getWalletAddress = () => {
-    if (!user) return ''
-    
-    // 方式1: 直接从 wallet 对象获取
-    if (user.wallet?.address) return user.wallet.address
-    
-    // 方式2: 从 linkedAccounts 获取钱包账户
-    const walletAccount = user.linkedAccounts?.find(
-      (account: any) => account.type === 'wallet'
-    ) as any
-    if (walletAccount?.address) return walletAccount.address
-    
-    return ''
-  }
-  
-  const walletAddress = getWalletAddress()
+  const walletAddress = user?.walletAddress ?? ''
   
   // 格式化地址显示（前6位...后4位，类似 0x1234...5678）
   const formatAddress = (address: string) => {
@@ -83,23 +69,24 @@ const Header = () => {
 
       {/* 右侧操作区 */}
       <div className="flex items-center gap-4">
-        {authenticated && walletAddress ? (
+        {isAuthenticated ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
-                <Wallet size={18} />
-                <span>{formatAddress(walletAddress)}</span>
+                {walletAddress ? <Wallet size={18} /> : <User size={18} />}
+                <span>{walletAddress ? formatAddress(walletAddress) : (user?.displayName || user?.email || '已登录')}</span>
                 <span className="text-xs">▼</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="flex items-center justify-between p-3">
+               <DropdownMenuLabel className="flex items-center justify-between p-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                    <Wallet size={14} className="text-primary" />
+                    {walletAddress ? <Wallet size={14} className="text-primary" /> : <User size={14} className="text-primary" />}
                   </div>
-                  <span className="font-medium">{formatAddress(walletAddress)}</span>
+                  <span className="font-medium">{walletAddress ? formatAddress(walletAddress) : (user?.displayName || user?.email || '已登录')}</span>
                 </div>
+                {walletAddress && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -111,6 +98,7 @@ const Header = () => {
                 >
                   <Copy size={14} />
                 </Button>
+                )}
               </DropdownMenuLabel>
               
               <DropdownMenuSeparator />
@@ -151,18 +139,19 @@ const Header = () => {
           </DropdownMenu>
         ) : (
           <Button
-            onClick={login}
+            onClick={() => setLoginOpen(true)}
             className="flex items-center gap-2"
-            disabled={!ready}
           >
             <Wallet size={18} />
-            <span>连接钱包</span>
+            <span>登录</span>
           </Button>
         )}
         <Button variant="ghost" size="icon">
           <Settings size={20} />
         </Button>
       </div>
+
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </header>
   )
 }

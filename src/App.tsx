@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { AuthProvider } from "./contexts/AuthContext";
 import { TradingProvider } from "./contexts/TradingContext";
 import Header from "./components/Header";
 import TradingPairs from "./components/TradingPairs";
@@ -22,6 +23,7 @@ function App() {
         },
       }}
     >
+      <AuthProvider>
       <TradingProvider>
         <div className="min-h-screen bg-background">
           <Header />
@@ -49,6 +51,7 @@ function App() {
           </div>
         </div>
       </TradingProvider>
+      </AuthProvider>
     </PrivyProvider>
   );
 }

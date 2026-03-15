@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { usePrivy } from '@privy-io/react-auth'
+import { useAuth } from '@/contexts/AuthContext'
 import { getUserPositions } from '@/lib/api'
 import { useConnectionStatus } from '@/hooks/useConnectionStatus'
 import type { Position, ConnectionStatus } from '@/types/trading'
@@ -19,17 +19,10 @@ const TradingContext = createContext<TradingContextValue | null>(null)
 const DEMO_USER_ID = 'demo_user_001'
 
 export function TradingProvider({ children }: { children: React.ReactNode }) {
-  const { user } = usePrivy()
+  const { user } = useAuth()
   const connectionStatus = useConnectionStatus()
 
-  const userId = (() => {
-    if (user?.wallet?.address) return user.wallet.address
-    const walletAccount = user?.linkedAccounts?.find(
-      (account: any) => account.type === 'wallet'
-    ) as any
-    if (walletAccount?.address) return walletAccount.address
-    return DEMO_USER_ID
-  })()
+  const userId = user?.id ?? DEMO_USER_ID
 
   const [currentPrice, setCurrentPrice] = useState(0)
   const [positions, setPositions] = useState<Position[]>([])

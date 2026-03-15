@@ -5,12 +5,13 @@ import type {
   Position,
   UdfHistoryResponse,
 } from '@/types/trading'
+import { authHeaders } from '@/lib/auth-api'
 
 /** 开仓 */
 export async function openPosition(req: OpenPositionRequest): Promise<OpenPositionResponse> {
   const res = await fetch('/api/clearing/open', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(req),
   })
   return res.json()
@@ -20,13 +21,16 @@ export async function openPosition(req: OpenPositionRequest): Promise<OpenPositi
 export async function closePosition(positionId: string): Promise<ClosePositionResponse> {
   const res = await fetch(`/api/clearing/close/${positionId}`, {
     method: 'DELETE',
+    headers: authHeaders(),
   })
   return res.json()
 }
 
 /** 获取用户持仓列表 */
 export async function getUserPositions(userId: string): Promise<Position[]> {
-  const res = await fetch(`/api/clearing/positions/user/${encodeURIComponent(userId)}`)
+  const res = await fetch(`/api/clearing/positions/user/${encodeURIComponent(userId)}`, {
+    headers: authHeaders(),
+  })
   return res.json()
 }
 
