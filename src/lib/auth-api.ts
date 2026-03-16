@@ -1,28 +1,4 @@
-import type { AuthResponse, WalletNonceResponse } from '@/types/auth'
-
-/** 邮箱注册 */
-export async function register(
-  email: string,
-  password: string,
-  displayName?: string,
-): Promise<AuthResponse> {
-  const res = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, displayName }),
-  })
-  return res.json()
-}
-
-/** 邮箱登录 */
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-  return res.json()
-}
+import type { AuthResponse } from '@/types/auth'
 
 /** Privy Token 登录 */
 export async function privyLogin(privyToken: string): Promise<AuthResponse> {
@@ -30,26 +6,6 @@ export async function privyLogin(privyToken: string): Promise<AuthResponse> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ privyToken }),
-  })
-  return res.json()
-}
-
-/** 获取钱包签名 Nonce */
-export async function getWalletNonce(address: string): Promise<WalletNonceResponse> {
-  const res = await fetch(`/api/auth/wallet/nonce?address=${encodeURIComponent(address)}`)
-  return res.json()
-}
-
-/** 钱包签名登录 */
-export async function walletLogin(
-  address: string,
-  message: string,
-  signature: string,
-): Promise<AuthResponse> {
-  const res = await fetch('/api/auth/wallet', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ address, message, signature }),
   })
   return res.json()
 }

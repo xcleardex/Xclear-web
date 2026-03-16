@@ -13,26 +13,3 @@ export interface AuthResponse {
   message?: string
   user?: AuthUser
 }
-
-/** 钱包 Nonce 响应 */
-export interface WalletNonceResponse {
-  success: boolean
-  message?: string
-  nonce?: string
-  address?: string
-}
-
-/** EIP-1193 Provider 接口 */
-export interface EIP1193Provider {
-  isMetaMask?: boolean
-  isCoinbaseWallet?: boolean
-  providers?: EIP1193Provider[]
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-}
-
-declare global {
-  interface Window {
-    okxwallet?: EIP1193Provider
-    phantom?: { ethereum?: EIP1193Provider }
-  }
-}

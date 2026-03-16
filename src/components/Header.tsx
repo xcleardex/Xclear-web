@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Wallet, Settings, Copy, ExternalLink, Power, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,11 +9,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/AuthContext'
-import LoginModal from './LoginModal'
 
 const Header = () => {
-  const { user, isAuthenticated, logout } = useAuth()
-  const [loginOpen, setLoginOpen] = useState(false)
+  const { user, isAuthenticated, loading, login, logout } = useAuth()
 
   const walletAddress = user?.walletAddress ?? ''
   
@@ -139,8 +136,9 @@ const Header = () => {
           </DropdownMenu>
         ) : (
           <Button
-            onClick={() => setLoginOpen(true)}
+            onClick={login}
             className="flex items-center gap-2"
+            disabled={loading}
           >
             <Wallet size={18} />
             <span>登录</span>
@@ -150,8 +148,6 @@ const Header = () => {
           <Settings size={20} />
         </Button>
       </div>
-
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
     </header>
   )
 }
