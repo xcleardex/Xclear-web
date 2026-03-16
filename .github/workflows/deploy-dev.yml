@@ -9,7 +9,7 @@ env:
   DOCKER_REGISTRY: ghcr.io
   DOCKER_USERNAME: ${{ github.repository_owner }}
   DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-  DOCKER_IMAGE: ${{ github.repository }}
+  DOCKER_IMAGE: ${{ github.repository }}/${{ github.event.repository.name }}
   DEPLOY_HOST: ${{ secrets.TEST_DEPLOY_HOST }}
   SSH_USERNAME: ${{ secrets.TEST_SSH_USERNAME }}
   SSH_PRIVATE_KEY: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
